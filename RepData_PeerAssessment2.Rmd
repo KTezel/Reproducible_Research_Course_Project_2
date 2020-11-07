@@ -1,0 +1,171 @@
+---
+title: "Most Dangerous and Harmful Weather Events in the US"
+author: "Korhan Tezel"
+date: "11/5/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reproducible Research Course Project 2
+## SYNOPSIS
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. More recent years should be considered more complete.
+
+Based on the data, the most harmful weather event to the population is tornadoes. Tornadoes are the number one reason for
+the casualties and injuries, second deadliest event type based on the data is the excessive heat.
+Although the tornadoes are the most harmful to the population, they don't cause as much property damage as the floods. Floods are the number one cause for the property damage in terms of dollars. Droughts are the most economically damaging event type for the crops. Flood is the number two in the same list.
+
+
+## DATA PROCESSING
+```{r, results='markup', warning=TRUE, message=TRUE, cache = TRUE}
+if(file.exists("repdata_data_StormData.csv.bz2")) {
+        raw_data <- read.csv("repdata_data_StormData.csv.bz2")
+}
+```
+
+### Calculate Property damage. Property damage is calculated by using PROPDMGEXP column.
+### This column includes letters which corresponds to the values below.
+#### H: Hundred
+#### K: Thousand
+#### M: Million
+#### B: Billion
+
+```{r chunk = "Load dplyr", message=FALSE, warning=FALSE}
+if(!require("dplyr")) install.packages("dplyr"); library("dplyr")
+```
+
+### After converting the letters into numbers, PROPDMG column needs to be multiplied with the corresponding number.
+```{r cache = TRUE}
+raw_data <- raw_data %>% mutate(propdmg_dollars = case_when(
+        tolower(PROPDMGEXP) %in% 'h' ~ 100*PROPDMG,
+        tolower(PROPDMGEXP) %in% 'k' ~ 1000*PROPDMG,
+        tolower(PROPDMGEXP) %in% 'm' ~ 1000000*PROPDMG,
+        tolower(PROPDMGEXP) %in% 'b' ~ 1000000000*PROPDMG
+        )
+)
+```
+### Calculate Crop damage. Crop damage is calculated by using CROPDMGEXP column.Same logic applies as above.
+```{r, cache = TRUE}
+raw_data <- raw_data %>% mutate(cropdmg_dollars = case_when(
+        tolower(CROPDMGEXP) %in% 'h' ~ 100*CROPDMG,
+        tolower(CROPDMGEXP) %in% 'k' ~ 1000*CROPDMG,
+        tolower(CROPDMGEXP) %in% 'm' ~ 1000000*CROPDMG,
+        tolower(CROPDMGEXP) %in% 'b' ~ 1000000000*CROPDMG
+        )
+)
+```
+
+## RESULTS
+
+### Across the United States, which types of events are most harmful with respect to population health?
+```{r}
+#### Aggregate FATALITIES per event type
+fatalities <- aggregate(FATALITIES ~ EVTYPE, raw_data, sum)
+#### Replace zero rows with NA
+fatalities[fatalities==0] <- NA
+#### Remove NA rows
+fatalities <- fatalities[complete.cases(fatalities),]
+#### Get top 5 most fatal events
+fatality_top_5 <- head(fatalities[order(fatalities$FATALITIES, decreasing = TRUE),],5)
+
+#### Aggregate INJURIES per event type
+injuries <- aggregate(INJURIES ~ EVTYPE, raw_data, sum)
+#### Replace zero rows with NA
+injuries[injuries==0] <- NA
+#### Remove NA rows
+injuries <- injuries[complete.cases(injuries),]
+### Get top 5 events with most injured total
+injuries_top_5 <- head(injuries[order(injuries$INJURIES, decreasing = TRUE),], 5)
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
+if(!require("ggplot2")) install.packages("ggplot2"); library("ggplot2")
+if(!require("scales")) install.packages("scales"); library("scales")
+```
+
+```{r chunk = "Top Harmful Events"}
+### Plot for fatal events
+p1 <- ggplot(data = fatality_top_5, aes(x=reorder(EVTYPE,FATALITIES), y = FATALITIES, fill = FATALITIES)) +
+        geom_bar(stat = "identity", width = 0.5) +
+        coord_flip() +
+        ylab("Total number of FATALITIES") +
+        xlab("Event type") +
+        theme(legend.position = "none") +
+        scale_fill_gradient(low = "gray", high = "black")
+
+### Plot for injuries
+p2 <- ggplot(data = injuries_top_5, aes(x=reorder(EVTYPE,INJURIES), y = INJURIES, fill = INJURIES)) +
+        geom_bar(stat = "identity", width = 0.5) +
+        coord_flip() +
+        ylab("Total number of INJURIES") +
+        xlab("Event type") +
+        theme(legend.position = "none") +
+        scale_fill_gradient(low = "gray", high = "black")
+```
+
+```{r chunk = "Top Harmful Events Plot", results='hide', message=FALSE, warning=FALSE}
+if(!require("grid")) install.packages("grid"); library("grid")
+if(!require("gridExtra")) install.packages("gridExtra"); library("gridExtra")
+if(!require("lattice")) install.packages("lattice"); library("lattice")
+```
+#### Tornadoes causes the most casualties and injuries.
+```{r}
+### Plot both 
+grid.arrange(arrangeGrob(p1, p2, ncol = 1, nrow = 2), heights = c(4,1), top = "Most Harmful Type of in US with Respect to the Population Health")
+```
+
+### Across the United States, which types of events have the greatest economic consequences?
+```{r}
+#### Aggregate FATALITIES per event type
+prop_damage <- aggregate(propdmg_dollars ~ EVTYPE, raw_data, sum)
+#### Replace zero rows with NA
+prop_damage[prop_damage==0] <- NA
+#### Remove NA rows
+prop_damage <- prop_damage[complete.cases(prop_damage),]
+#### Get top 5 most fatal events
+prop_damage_top_5 <- head(prop_damage[order(prop_damage$propdmg_dollars, decreasing = TRUE),],5)
+
+#### Aggregate INJURIES per event type
+crop_damage <- aggregate(cropdmg_dollars ~ EVTYPE, raw_data, sum)
+#### Replace zero rows with NA
+crop_damage[crop_damage==0] <- NA
+#### Remove NA rows
+crop_damage <- crop_damage[complete.cases(crop_damage),]
+### Get top 5 events with most injured total
+crop_damage_top_5 <- head(crop_damage[order(crop_damage$cropdmg_dollars, decreasing = TRUE),], 5)
+```
+
+```{r chunk = "Top Harmful Events"}
+### Plot for most economically damaging events
+p3 <- ggplot(data = prop_damage_top_5, aes(x=reorder(EVTYPE,propdmg_dollars), y = propdmg_dollars, fill = propdmg_dollars)) +
+        geom_bar(stat = "identity", width = 0.5) +
+        coord_flip() +
+        ylab("Total dollars for Property Damage") +
+        xlab("Event type") +
+        theme(legend.position = "none") +
+        scale_fill_gradient(low = "gray", high = "black") +
+        scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6)) +
+        ggtitle("Most Economically Damaging Event Types in US")
+
+### Plot for injuries
+p4 <- ggplot(data = crop_damage_top_5, aes(x=reorder(EVTYPE,cropdmg_dollars), y = cropdmg_dollars, fill = cropdmg_dollars)) +
+        geom_bar(stat = "identity", width = 0.5) +
+        coord_flip() +
+        ylab("Total dollars for Crop Damage") +
+        xlab("Event type") +
+        theme(legend.position = "none") +
+        scale_fill_gradient(low = "gray", high = "black") +
+        scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))
+```
+
+#### Floods are the most economically damaging event types and the most damaging weather event for crops is
+#### drought.
+```{r}
+### Plot both 
+if(!require("cowplot")) install.packages("cowplot"); library("cowplot")
+plot_grid(p3, p4, ncol = 1, align = "v")
+```
